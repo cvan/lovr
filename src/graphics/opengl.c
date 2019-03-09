@@ -1871,13 +1871,18 @@ Shader* lovrShaderInitGraphics(Shader* shader, const char* vertexSource, const c
   const char* fragmentHeader = "#version 150\n";
 #endif
 
+#ifdef LOVR_GL
   const char* vertexSinglepass = state.features.singlepass ?
-    "#extension GL_AMD_vertex_shader_viewport_index : require\n" "#define SINGLEPASS 1\n" :
-    "#define SINGLEPASS 0\n";
+    "#extension GL_AMD_vertex_shader_viewport_index : require\n" "#define SINGLEPASS\n" : "";
 
   const char* fragmentSinglepass = state.features.singlepass ?
-    "#extension GL_ARB_fragment_layer_viewport : require\n" "#define SINGLEPASS 1\n" :
-    "#define SINGLEPASS 0\n";
+    "#extension GL_ARB_fragment_layer_viewport : require\n" "#define SINGLEPASS\n" : "";
+#else
+  const char* vertexSinglepass = state.features.singlepass ?
+    "#extension GL_OVR_multiview : require\n" "#define MULTIVIEW\n" : "";
+
+  const char* fragmentSinglepass = vertexSinglepass;
+#endif
 
   size_t maxDraws = MIN(state.limits.blockSize / (20 * sizeof(float)) / 64 * 64, 256);
   char maxDrawSource[32];
