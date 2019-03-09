@@ -18,6 +18,7 @@ typedef struct {
     TextureFormat format;
   } depth;
   bool stereo;
+  bool multiview;
   int msaa;
   bool mipmaps;
 } CanvasFlags;
