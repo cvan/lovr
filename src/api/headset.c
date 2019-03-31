@@ -1,8 +1,8 @@
 #include "api.h"
+#include "api/headset.h"
 #include "api/math.h"
 #include "headset/headset.h"
 #include "lib/math.h"
-#include "lib/map/map.h"
 #include "graphics/texture.h"
 
 #if defined(EMSCRIPTEN) || defined(LOVR_USE_OCULUS_MOBILE)
@@ -68,6 +68,14 @@ const char* HeadsetTypes[] = {
   NULL
 };
 
+const char* Subpaths[] = {
+  [PATH_NONE] = "",
+  [PATH_HEAD] = "head",
+  [PATH_HANDS] = "hands",
+  [PATH_LEFT] = "left",
+  [PATH_RIGHT] = "right"
+};
+
 typedef struct {
   lua_State* L;
   int ref;
@@ -75,8 +83,56 @@ typedef struct {
 
 static HeadsetRenderData headsetRenderData;
 
-typedef map_t(Subpath) map_subpath_t;
-static map_subpath_t subpaths;
+Path luax_optpath(lua_State* L, int index, const char* fallback) {
+  char* str = (char*) luaL_optstring(L, index, fallback);
+  Path path = { { PATH_NONE } };
+  int count = 0;
+
+  if (str[0] == '/') {
+    str++;
+  }
+
+  while (1) {
+    char* slash = strchr(str, '/');
+
+    if (slash) {
+      *slash = '\0';
+    }
+
+    Subpath subpath = PATH_NONE;
+    for (size_t i = 0; i < sizeof(Subpaths) / sizeof(Subpaths[0]); i++) {
+      if (!strcmp(str, Subpaths[0])) {
+        subpath = i;
+        break;
+      }
+    }
+
+    lovrAssert(subpath != PATH_NONE, "Unknown path component '%s'", str);
+    path.pieces[count++] = subpath;
+
+    if (slash) {
+      *slash = '/';
+      str = slash + 1;
+    } else {
+      break;
+    }
+  }
+
+  return path;
+}
+
+void luax_pushpath(lua_State* L, Path path) {
+  for (int i = 0; i < 8; i++) {
+    if (path.pieces[i] == PATH_NONE) {
+      lua_concat(L, i + 1);
+      break;
+    }
+
+    lua_pushstring(L, Subpaths[path.pieces[i]]);
+  }
+
+  lovrThrow("Unreachable");
+}
 
 static void renderHelper(void* userdata) {
   HeadsetRenderData* renderData = userdata;
@@ -200,38 +256,7 @@ static int l_lovrHeadsetGetBoundsGeometry(lua_State* L) {
   return 1;
 }
 
-static Path luax_optpath(lua_State* L, int index, const char* fallback) {
-  char* str = (char*) luaL_optstring(L, index, fallback);
-  Path path = { { PATH_NONE } };
-  int count = 0;
-
-  if (str[0] == '/') {
-    str++;
-  }
-
-  while (1) {
-    char* slash = strchr(str, '/');
-
-    if (slash) {
-      *slash = '\0';
-    }
-
-    Subpath* subpath = map_get(&subpaths, str);
-    lovrAssert(subpath, "Unknown path component '%s'", str);
-    path.pieces[count++] = *subpath;
-
-    if (slash) {
-      *slash = '/';
-      str = slash + 1;
-    } else {
-      break;
-    }
-  }
-
-  return path;
-}
-
-static int l_lovrHeadsetGetPose(lua_State* L) {
+int l_lovrHeadsetGetPose(lua_State* L) {
   Path path = luax_optpath(L, 1, "head");
   float x, y, z, angle, ax, ay, az;
   FOREACH_TRACKING_DRIVER(driver) {
@@ -249,7 +274,7 @@ static int l_lovrHeadsetGetPose(lua_State* L) {
   return 0;
 }
 
-static int l_lovrHeadsetGetPosition(lua_State* L) {
+int l_lovrHeadsetGetPosition(lua_State* L) {
   Path path = { { PATH_NONE } };
   float position[3], angle, ax, ay, az;
   FOREACH_TRACKING_DRIVER(driver) {
@@ -263,7 +288,7 @@ static int l_lovrHeadsetGetPosition(lua_State* L) {
   return 0;
 }
 
-static int l_lovrHeadsetGetOrientation(lua_State* L) {
+int l_lovrHeadsetGetOrientation(lua_State* L) {
   Path path = { { PATH_HEAD } };
   float x, y, z, angle, ax, ay, az;
   FOREACH_TRACKING_DRIVER(driver) {
@@ -278,7 +303,7 @@ static int l_lovrHeadsetGetOrientation(lua_State* L) {
   return 0;
 }
 
-static int l_lovrHeadsetGetVelocity(lua_State* L) {
+int l_lovrHeadsetGetVelocity(lua_State* L) {
   Path path = { { PATH_HEAD } };
   float vx, vy, vz;
   FOREACH_TRACKING_DRIVER(driver) {
@@ -292,7 +317,7 @@ static int l_lovrHeadsetGetVelocity(lua_State* L) {
   return 0;
 }
 
-static int l_lovrHeadsetGetAngularVelocity(lua_State* L) {
+int l_lovrHeadsetGetAngularVelocity(lua_State* L) {
   Path path = { { PATH_HEAD } };
   float vx, vy, vz;
   FOREACH_TRACKING_DRIVER(driver) {
@@ -432,12 +457,6 @@ int luaopen_lovr_headset(lua_State* L) {
   lua_pop(L, 2);
 
   headsetRenderData.ref = LUA_NOREF;
-
-  map_init(&subpaths);
-  map_set(&subpaths, "head", PATH_HEAD);
-  map_set(&subpaths, "hands", PATH_HANDS);
-  map_set(&subpaths, "left", PATH_LEFT);
-  map_set(&subpaths, "right", PATH_RIGHT);
 
   return 1;
 }
