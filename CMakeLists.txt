@@ -77,7 +77,8 @@ elseif(UNIX)
   find_package(PkgConfig)
 endif()
 
-if(EMSCRIPTEN OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
+# Turn off SSE if we know it won't work (is there a better way to detect SSE2?)
+if(EMSCRIPTEN OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm" OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
   set(LOVR_USE_SSE OFF)
 endif()
 
